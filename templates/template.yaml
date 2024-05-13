@@ -1,0 +1,331 @@
+ROSTemplateFormatVersion: '2015-09-01'
+Description:
+  en: deploy mysql
+  zh-cn: 部署mysql
+Parameters:
+  AdminPassword:
+    Type: String
+    Label:
+      zh-cn: 数据库root账号密码
+      en: DB Admin Account Password
+    NoEcho: true
+  ClusterId:
+    Type: String
+    AssociationProperty: ALIYUN::CS::Cluster::ClusterId
+  Storage:
+    Type: Number
+    AllowedValues:
+      - 20
+      - 40
+      - 80
+    Label:
+      zh-cn: 数据盘大小
+      en: Data Disk Size
+  ConfigParam:
+    Type: String
+    Description:
+      zh-cn: 数据库配置参数
+      en: Database configuration parameters
+    Label:
+      zh-cn: 数据库配置参数
+      en: Database Configuration Parameter
+  Replicas:
+    Type: Number
+    Default: 1
+    Label:
+      zh-cn: 副本数
+      en: Number Of Copies
+  ZoneId:
+    Type: String
+    AssociationProperty: ALIYUN::ECS::Instance::ZoneId
+    Label:
+      en: Availability Zone
+      zh-cn: 可用区
+Resources:
+  ClusterNameSpaceApplication:
+    Type: ALIYUN::CS::ClusterApplication
+    Properties:
+      YamlContent:
+        Fn::Sub:
+          - |
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: '${Name}'
+              labels:
+                tenant_userid: '{{ aliUid }}'
+                tenant_clusterid: '{{ tenantClusterId }}'
+                tenant_token: '{{ tenantToken }}'
+                tenant_cloudproductcode: '{{ tenantCloudProductCode }}'
+          - Name: '{{ serviceInstanceId }}'
+      ClusterId:
+        Ref: ClusterId
+  DataDisk:
+    Type: ALIYUN::ECS::Disk
+    Properties:
+      DiskCategory: cloud_essd
+      Size:
+        Ref: Storage
+      ZoneId:
+        Ref: ZoneId
+  ClusterApplication:
+    Type: ALIYUN::CS::ClusterApplication
+    DependsOn:
+      - DataDisk
+      - ClusterNameSpaceApplication
+    Properties:
+      ValidationMode: Basic
+      WaitUntil:
+        - Kind: Service
+          Name: '{{ serviceInstanceId }}'
+          JsonPath: '$.status.loadBalancer.ingress[0].ip'
+          Operator: NotEmpty
+          Timeout: 300
+          ValueType: Json
+          FirstMatch: true
+      YamlContent:
+        Fn::Sub:
+          - |
+            apiVersion: apps/v1
+            kind: StatefulSet
+            metadata:
+              name: {{ serviceInstanceId }}
+            spec:
+              serviceName: {{ serviceInstanceId }}
+              replicas: ${Replicas}
+              selector:
+                matchLabels:
+                  app: mysql
+              template:
+                metadata:
+                  labels:
+                    app: mysql
+                spec:
+                  containers:
+                    - name: mysql
+                      image: mysql:latest
+                      env:
+                        - name: MYSQL_ROOT_PASSWORD
+                          valueFrom:
+                            secretKeyRef:
+                              name: mysql-secret
+                              key: password
+                      ports:
+                        - containerPort: 3306
+                      volumeMounts:
+                        - name: mysql-data
+                          mountPath: /var/lib/mysql
+                        - name: mysql-config
+                          mountPath: /etc/mysql/conf.d
+                    - name: mysql-exporter
+                      image: prom/mysqld-exporter:latest
+                      command:
+                        - /bin/mysqld_exporter
+                        - --collect.info_schema.innodb_metrics
+                        - --collect.info_schema.tables
+                        - --collect.info_schema.processlist
+                        - --collect.info_schema.tables.databases=*
+                        - --mysqld.username=root   #监控用户名称
+                      env:
+                        - name: MYSQLD_EXPORTER_PASSWORD
+                          value: ${Password}
+                        - name: DATA_SOURCE_NAME
+                          value: "root:${Password}@(localhost:3306)/"
+                      ports:
+                        - containerPort: 9104
+                          name: metrics
+                    - name: prometheus
+                      image: prom/prometheus
+                      args:
+                        - "--config.file=/etc/config/prometheus.yml"
+                        - "--storage.tsdb.retention.time=12h"
+                        - "--web.enable-lifecycle"
+                        - "--web.enable-admin-api"
+                      ports:
+                        - containerPort: 9090
+                      volumeMounts:
+                        - name: prometheus-config
+                          mountPath: "/etc/config"
+                  volumes:
+                    - name: mysql-config
+                      configMap:
+                        name: mysql-config
+                    - name: mysql-data
+                      persistentVolumeClaim:
+                        claimName: mysql-data
+                    - name: prometheus-config
+                      configMap:
+                        name: prometheus-config
+            ---
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: mysql-data
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: ${Storage}
+              storageClassName: disk
+              selector:
+                matchLabels:
+                  alicloud-pvname: ${DiskId}
+            ---
+            apiVersion: v1
+            kind: PersistentVolume
+            metadata:
+              name: ${DiskId}
+              labels:
+                alicloud-pvname: ${DiskId}
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              capacity:
+                storage: ${Storage}
+              storageClassName: disk
+              csi:
+                driver: diskplugin.csi.alibabacloud.com
+                volumeHandle: ${DiskId}
+                fsType: ext4
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: {{ serviceInstanceId }}
+              labels:
+                io.mysql.service: {{ serviceInstanceId }}
+            spec:
+              selector:
+                app: mysql
+              ports:
+                - protocol: TCP
+                  port: 3306
+                  targetPort: 3306
+                  name: mysql
+                - protocol: TCP
+                  port: 9104
+                  targetPort: 9104
+                  name: mysql-exporter
+                - protocol: TCP
+                  port: 9090
+                  targetPort: 9090
+                  name: prometheus
+              type: LoadBalancer
+            ---
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: mysql-config
+            data:
+              my.cnf: |
+            ${ConfigParam}
+            ---
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: mysql-secret
+            data:
+              password: ${RootPassword}
+            ---
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: prometheus-config
+            data:
+              prometheus.yml: |
+                global:
+                  scrape_interval: 5s
+                  evaluation_interval: 5s
+                scrape_configs:
+                  - job_name: prometheus
+                    metrics_path: /metrics
+                    scheme: metrics
+                    static_configs:
+                      - targets: ['localhost:9104']
+            ---
+            apiVersion: monitoring.coreos.com/v1
+            kind: ServiceMonitor
+            metadata:
+              name: prometheus-service-monitor
+              annotations:
+                arms.prometheus.io/discovery: 'true'
+              labels:
+                prometheus-service-monitor: prometheus-service-monitor
+            spec:
+              selector:
+                matchLabels:
+                  io.mysql.service: {{ serviceInstanceId }}
+              namespaceSelector:
+                matchNames:
+                  - {{ serviceInstanceId }}
+              endpoints:
+                - port: mysql-exporter
+                  scheme: http
+                  path: /metrics
+                  interval: 10s
+                  scrapeTimeout: 10s
+          - RootPassword:
+              'Fn::Base64Encode':
+                Ref: AdminPassword
+            Password:
+              Ref: AdminPassword
+            RegionId:
+              Ref: ALIYUN::Region
+            Storage:
+              Fn::Sub:
+                - ${Storage}Gi
+                - Storage:
+                    Ref: Storage
+            DiskId:
+              Fn::GetAtt:
+                - DataDisk
+                - DiskId
+            ConfigParam:
+              Fn::Indent:
+                - Fn::Select:
+                    - default
+                    - Ref: ConfigParam
+                - 2
+            Replicas:
+              Ref: Replicas
+      ClusterId:
+        Ref: ClusterId
+      DefaultNamespace: '{{ serviceInstanceId }}'
+Outputs:
+  # 将公网ip做为http返回的地址显示在控制台
+  Endpoint:
+    Description:
+      zh-cn: 对外暴露的公网IP地址
+      en: Public IP Addresses
+    Value:
+      Fn::Sub:
+        - mysql://${ServerAddress}:3306
+        - ServerAddress:
+            Fn::Select:
+              - 0
+              - 'Fn::GetAtt':
+                  - ClusterApplication
+                  - WaitUntilData
+  AdminPassword:
+    Description:
+      zh-cn: 数据库管理员账号登录密码
+      en: DB Admin Account Password
+    Value:
+      Ref: AdminPassword
+Metadata:
+  'ALIYUN::ROS::Interface':
+    ParameterGroups:
+      - Parameters:
+          - Storage
+        Label:
+          en: 资源信息
+      - Parameters:
+          - ClusterId
+        Label:
+          en: 集群信息
+      - Parameters:
+          - AdminPassword
+        Label:
+          zh: 数据库信息
+          en: Database Info
