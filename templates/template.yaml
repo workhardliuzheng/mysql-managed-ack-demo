@@ -35,13 +35,12 @@ Parameters:
     Label:
       zh-cn: 副本数
       en: Number Of Copies
-  ZoneId:
-    Type: String
-    AssociationProperty: ALIYUN::ECS::Instance::ZoneId
-    Label:
-      en: Availability Zone
-      zh-cn: 可用区
 Resources:
+  KubernetesCluster:
+    Type: DATASOURCE::CS::KubernetesCluster
+    Properties:
+      ClusterId:
+        Ref: ClusterId
   ClusterNameSpaceApplication:
     Type: ALIYUN::CS::ClusterApplication
     Properties:
@@ -67,7 +66,9 @@ Resources:
       Size:
         Ref: Storage
       ZoneId:
-        Ref: ZoneId
+        Fn::GetAtt:
+          - KubernetesCluster
+          - ZoneId
   ClusterApplication:
     Type: ALIYUN::CS::ClusterApplication
     DependsOn:
@@ -114,7 +115,7 @@ Resources:
                         - containerPort: 3306
                       volumeMounts:
                         - name: mysql-data
-                          mountPath: /var/lib/mysql
+                          mountPath: /data1/mysql/
                         - name: mysql-config
                           mountPath: /etc/mysql/conf.d
                     - name: mysql-exporter
@@ -134,18 +135,6 @@ Resources:
                       ports:
                         - containerPort: 9104
                           name: metrics
-                    - name: prometheus
-                      image: prom/prometheus
-                      args:
-                        - "--config.file=/etc/config/prometheus.yml"
-                        - "--storage.tsdb.retention.time=12h"
-                        - "--web.enable-lifecycle"
-                        - "--web.enable-admin-api"
-                      ports:
-                        - containerPort: 9090
-                      volumeMounts:
-                        - name: prometheus-config
-                          mountPath: "/etc/config"
                   volumes:
                     - name: mysql-config
                       configMap:
@@ -153,9 +142,6 @@ Resources:
                     - name: mysql-data
                       persistentVolumeClaim:
                         claimName: mysql-data
-                    - name: prometheus-config
-                      configMap:
-                        name: prometheus-config
             ---
             apiVersion: v1
             kind: PersistentVolumeClaim
@@ -207,10 +193,6 @@ Resources:
                   port: 9104
                   targetPort: 9104
                   name: mysql-exporter
-                - protocol: TCP
-                  port: 9090
-                  targetPort: 9090
-                  name: prometheus
               type: LoadBalancer
             ---
             apiVersion: v1
@@ -227,22 +209,6 @@ Resources:
               name: mysql-secret
             data:
               password: ${RootPassword}
-            ---
-            apiVersion: v1
-            kind: ConfigMap
-            metadata:
-              name: prometheus-config
-            data:
-              prometheus.yml: |
-                global:
-                  scrape_interval: 5s
-                  evaluation_interval: 5s
-                scrape_configs:
-                  - job_name: prometheus
-                    metrics_path: /metrics
-                    scheme: metrics
-                    static_configs:
-                      - targets: ['localhost:9104']
             ---
             apiVersion: monitoring.coreos.com/v1
             kind: ServiceMonitor
