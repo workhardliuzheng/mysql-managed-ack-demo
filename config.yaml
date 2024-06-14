@@ -113,6 +113,9 @@ Service:
                 thread_cache_size = 16
                 symbolic-links=0
                 sql_mode=NO_ENGINE_SUBSTITUTION,STRICT_TRANS_TABLES
+                
+                [client]
+                socket=/data1/mysql/mysql.sock
               Formatter: cnf
               Name: mysql
               FormatterConfig:
