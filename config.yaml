@@ -15,7 +15,7 @@ Service:
         - Name: mysql
           AllowedRegions:
             - ${RegionId}
-          Url: 'templates/template.yaml'
+          Url: 'ros_templates/template.yaml'
           PredefinedParameters:
             - Name: 低配版
               Description: 1副本，20G
