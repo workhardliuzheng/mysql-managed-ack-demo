@@ -1,5 +1,4 @@
-site_name: Aliyun 计算巢 x Demo
-theme:
+site_name: Aliyun 计算巢 x mysql-managed-ack-demo
+theme: 
   name: aliyuncomputenest
-extra_css:
-  - css/custom.css
+docs_dir: .computenest/docs
