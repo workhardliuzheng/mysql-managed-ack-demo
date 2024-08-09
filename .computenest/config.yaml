@@ -143,8 +143,8 @@ Service:
   PolicyNames: AliyunComputeNestPolicyForOperation
   ServiceInfo:
     Locale: zh-CN
-    ShortDescription: Mysql ACK容器多租户yaml部署
+    ShortDescription: Mysql 容器多租户yaml部署
     Image: 'icons/mysql_log.jpeg'
-    Name: Mysql ACK容器yaml部署
+    Name: Mysql 容器yaml部署
   ShareType: Public
   ApprovalType: Manual
