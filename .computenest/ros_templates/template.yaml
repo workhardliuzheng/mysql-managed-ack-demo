@@ -59,20 +59,9 @@ Resources:
           - Name: '{{ serviceInstanceId }}'
       ClusterId:
         Ref: ClusterId
-  DataDisk:
-    Type: ALIYUN::ECS::Disk
-    Properties:
-      DiskCategory: cloud_essd
-      Size:
-        Ref: Storage
-      ZoneId:
-        Fn::GetAtt:
-          - KubernetesCluster
-          - ZoneId
   ClusterApplication:
     Type: ALIYUN::CS::ClusterApplication
     DependsOn:
-      - DataDisk
       - ClusterNameSpaceApplication
     Properties:
       ValidationMode: Basic
@@ -90,9 +79,9 @@ Resources:
             apiVersion: apps/v1
             kind: StatefulSet
             metadata:
-              name: {{ serviceInstanceId }}
+              name: '{{ serviceInstanceId }}'
             spec:
-              serviceName: {{ serviceInstanceId }}
+              serviceName: '{{ serviceInstanceId }}'
               replicas: ${Replicas}
               selector:
                 matchLabels:
@@ -153,34 +142,14 @@ Resources:
               resources:
                 requests:
                   storage: ${Storage}
-              storageClassName: disk
-              selector:
-                matchLabels:
-                  alicloud-pvname: ${DiskId}
-            ---
-            apiVersion: v1
-            kind: PersistentVolume
-            metadata:
-              name: ${DiskId}
-              labels:
-                alicloud-pvname: ${DiskId}
-            spec:
-              accessModes:
-                - ReadWriteOnce
-              capacity:
-                storage: ${Storage}
-              storageClassName: disk
-              csi:
-                driver: diskplugin.csi.alibabacloud.com
-                volumeHandle: ${DiskId}
-                fsType: ext4
+              storageClassName: alicloud-disk-topology-alltype
             ---
             apiVersion: v1
             kind: Service
             metadata:
-              name: {{ serviceInstanceId }}
+              name: '{{ serviceInstanceId }}'
               labels:
-                io.mysql.service: {{ serviceInstanceId }}
+                io.mysql.service: '{{ serviceInstanceId }}'
             spec:
               selector:
                 app: mysql
@@ -221,10 +190,10 @@ Resources:
             spec:
               selector:
                 matchLabels:
-                  io.mysql.service: {{ serviceInstanceId }}
+                  io.mysql.service: '{{ serviceInstanceId }}'
               namespaceSelector:
                 matchNames:
-                  - {{ serviceInstanceId }}
+                  - '{{ serviceInstanceId }}'
               endpoints:
                 - port: mysql-exporter
                   scheme: http
@@ -243,10 +212,6 @@ Resources:
                 - ${Storage}Gi
                 - Storage:
                     Ref: Storage
-            DiskId:
-              Fn::GetAtt:
-                - DataDisk
-                - DiskId
             ConfigParam:
               Fn::Indent:
                 - Fn::Select:

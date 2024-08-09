@@ -15,15 +15,15 @@
 本示例创建过程大约持续1分钟，当服务变成待提交后构建成功。
 
 ## 服务使用前提准备
-本示例需要提前准备ack集群，且集群中配置prometheus监控实现多租转发的配置。推荐使用[基础资源配置服务](https://computenest.console.aliyun.com/service/instance/create/cn-hangzhou?type=user&ServiceId=service-9ee2ab978b014397b0cc)，进行基础资源一键配置。
+本示例需要提前准备容器集群，集群类型支持ACK、ACS等类型，且集群中配置prometheus监控实现多租转发的配置。推荐使用[基础资源配置服务](https://computenest.console.aliyun.com/service/instance/create/cn-hangzhou?type=user&ServiceId=service-9ee2ab978b014397b0cc)，进行基础资源一键配置。
 
 注意：
-已有ack场景，ack集群必须通过基础资源配置服务处理集群，否则不支持prometheus监控的多租分发；新建ack场景可通过此服务新建集群并配置基础资源。
+已有容器集群场景，必须通过基础资源配置服务处理集群，否则不支持prometheus监控的多租分发。
 一个集群只需配置一次基础资源，且给集群打开删除保护，避免误删除。
 
 ## 服务架构
 
-本部署架构为ACK多租户部署，架构如下图所示：
+本部署架构为容器集群多租户部署，架构如下图所示：
 1. 使用ingress根据域名路由到各个租户的mysql
 2. 每个租户一个k8s namespace，用namespace隔离
 3. mysql使用yaml部署
@@ -89,8 +89,8 @@ tenant_cloudproductcode: '{{ tenantCloudProductCode }}'
 
 测试本服务在计算巢上的费用主要涉及：
 
-- 导入的ACK集群的费用
-- 在ACK集群新建的磁盘、网络等费用
+- 导入的容器集群的费用
+- 在容器集群新建的磁盘、网络等费用
 
 
 ## 服务实例部署流程
