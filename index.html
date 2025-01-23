@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="计算巢是阿里云开放给企业应用服务商的服务管理平台。服务商能够在计算巢上发布私有化部署服务，为其客户提供云上软件一键部署的能力；同时也支持全托管模式的服务，赋能服务商托管其客户资源。">
+  <title>服务模板说明文档 - Aliyun 计算巢 x mysql-managed-ack-demo</title>
+
+  <link rel="shortcut icon" href="img/favicon.ico">
+
+  <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css">
+  <link rel="stylesheet" href="css/theme.css">
+  
+
+  
+
+  
+  
+
+  
+    <script src="search/main.js"></script>
+  
+
+  
+
+  <script src="js/highlight.min.js"></script>
+  <script>hljs.highlightAll();</script>
+</head>
+
+<body>
+  <div class="container">
+    <div class="nav">
+      <div class="nav-inner">
+        <div class="logo">
+          <img src="./img/logo-2x.png">
+        </div>
+        <div class="nav-list">
+          <ul>
+          
+              <li><a href="#_1">服务模板说明文档</a></li>
+              
+                  <li><a href="#_2">服务说明</a></li>
+                  
+              
+                  <li><a href="#_3">服务使用前提准备</a></li>
+                  
+              
+                  <li><a href="#_4">服务架构</a></li>
+                  
+              
+                  <li><a href="#prometheus">开启Prometheus监控配置</a></li>
+                  
+                      <li class="li-h3"><a href="#_5">模板中添加租户标签</a></li>
+                  
+                      <li class="li-h3"><a href="#_6">配置产品标识和对应的大盘链接</a></li>
+                  
+              
+                  <li><a href="#_7">服务构建计费说明</a></li>
+                  
+              
+                  <li><a href="#ram">RAM账号所需权限</a></li>
+                  
+              
+                  <li><a href="#_8">服务实例计费说明</a></li>
+                  
+              
+                  <li><a href="#_9">服务实例部署流程</a></li>
+                  
+                      <li class="li-h3"><a href="#_10">部署参数说明</a></li>
+                  
+                      <li class="li-h3"><a href="#_11">部署步骤</a></li>
+                  
+              
+          
+              <li><a href="#_12">更多功能</a></li>
+              
+                  <li><a href="#_13">计量计费</a></li>
+                  
+              
+                  <li><a href="#_14">服务配置</a></li>
+                  
+              
+          
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="content theme-github">
+      
+      <div class="content-inner">        
+        
+        <h1 id="_1">服务模板说明文档</h1>
+<h2 id="_2">服务说明</h2>
+<p>本文介绍容器服务部署mysql实现托管版多租户的流程，本示例对应的Git仓库地址为：<a href="https://github.com/aliyun-computenest/mysql-managed-ack-demo">mysql-managed-ack-demo</a>。</p>
+<p>根据该服务模板构建的服务默认包含三种套餐：</p>
+<table>
+<thead>
+<tr>
+<th>套餐名</th>
+<th>副本数</th>
+<th>数据卷容量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>低配版</td>
+<td>1</td>
+<td>ESSD云盘 20GiB PL0</td>
+</tr>
+<tr>
+<td>基础版</td>
+<td>2</td>
+<td>ESSD云盘 40GiB PL0</td>
+</tr>
+<tr>
+<td>高配版</td>
+<td>2</td>
+<td>ESSD云盘 80GiB PL0</td>
+</tr>
+</tbody>
+</table>
+<p>本示例创建过程大约持续1分钟，当服务变成待提交后构建成功。</p>
+<h2 id="_3">服务使用前提准备</h2>
+<p>本示例需要提前准备容器集群，集群类型支持ACK、ACS等类型，且集群中配置prometheus监控实现多租转发的配置。推荐使用<a href="https://computenest.console.aliyun.com/service/instance/create/cn-hangzhou?type=user&amp;ServiceId=service-9ee2ab978b014397b0cc">基础资源配置服务</a>，进行基础资源一键配置。</p>
+<p>注意：
+已有容器集群场景，必须通过基础资源配置服务处理集群，否则不支持prometheus监控的多租分发。
+一个集群只需配置一次基础资源，且给集群打开删除保护，避免误删除。</p>
+<h2 id="_4">服务架构</h2>
+<p>本部署架构为容器集群多租户部署，架构如下图所示：
+1. 使用ingress根据域名路由到各个租户的mysql
+2. 每个租户一个k8s namespace，用namespace隔离
+3. mysql使用yaml部署</p>
+<p><img alt="architecture.png" src="architecture.png" /></p>
+<h2 id="prometheus">开启Prometheus监控配置</h2>
+<p>该服务支持配置Prometheus监控，服务实例部署成功后，服务商及其租户都能在控制台查看监控大盘, 开启Prometheus监控需要以下配置<strong>(每个集群配置一次即可</strong>)</p>
+<h3 id="_5">模板中添加租户标签</h3>
+<p>该服务的架构为用namespace隔离各个租户的资源，为了区分各个租户的监控指标，需要给每个namespace打上租户标签，租户标签内容如下：</p>
+<pre><code class="language-yaml">tenant_userid: '{{ aliUid }}'
+tenant_clusterid: '{{ tenantClusterId }}'
+tenant_token: '{{ tenantToken }}'
+tenant_cloudproductcode: '{{ tenantCloudProductCode }}'
+</code></pre>
+<p>该示例服务模板中已经正确配置该租户标签，可直接使用，无需重新配置。示例如下：</p>
+<pre><code class="language-yaml"> ClusterNameSpaceApplication:
+    Type: ALIYUN::CS::ClusterApplication
+    Properties:
+      YamlContent:
+        Fn::Sub:
+          - |
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: '${Name}'
+              labels:
+                tenant_userid: '{{ aliUid }}'
+                tenant_clusterid: '{{ tenantClusterId }}'
+                tenant_token: '{{ tenantToken }}'
+                tenant_cloudproductcode: '{{ tenantCloudProductCode }}'
+          - Name: '{{ serviceInstanceId }}'
+</code></pre>
+<h3 id="_6">配置产品标识和对应的大盘链接</h3>
+<p>托管版多租服务使用计算巢提供的Prometheus能力，需要设置服务标识和监控大盘信息：
+1. 服务标识：表示服务在监控系统中的唯一标识，该服务中使用"cn-mariadb"为服务标识，<strong>cn-mariadb用于测试</strong>，所有服务共享使用该产品标识。目前cn-mariadb
+   已开通杭州和香港两个地域，支持在这个两个地域下测试。<strong>若需要使用专用服务标识，详情可以通过工单或钉钉交流群咨询计算巢开发同学。</strong>
+2. 监控大盘设置包括监控大盘标题和Grafana大盘链接，监控大盘信息与服务标识是对应关系，在服务标识为cn-mariadb时，大盘标题默认为：MySQL Exporter Quickstart and
+   Dashboard，大盘链接也是固定内容，无需修改。<strong>如需要修改大盘信息，详情可以通过工单或钉钉交流群咨询计算巢开发同学</strong>。
+   该示例服务中已经配置好了监控大盘信息，无需修改，保持默认即可，配置示例如下：
+   <img alt="prom-8.jpg" src="prom-8.jpg" /></p>
+<h2 id="_7">服务构建计费说明</h2>
+<p>测试本服务构建无需任何费用，创建服务实例涉及的费用参考下文"服务实例计费说明"。</p>
+<h2 id="ram">RAM账号所需权限</h2>
+<p>本服务需要对ECS、VPC等资源进行访问和创建操作，若您使用RAM用户创建服务实例，需要在创建服务实例前，对使用的RAM用户的账号添加相应资源的权限。添加RAM权限的详细操作，请参见<a href="https://help.aliyun.com/document_detail/121945.html">为RAM用户授权</a>。所需权限如下表所示。</p>
+<table>
+<thead>
+<tr>
+<th>权限策略名称</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AliyunCSFullAccess</td>
+<td>管理容器服务服务（CS）的权限</td>
+</tr>
+<tr>
+<td>AliyunROSFullAccess</td>
+<td>管理资源编排服务（ROS）的权限</td>
+</tr>
+<tr>
+<td>AliyunComputeNestUserFullAccess</td>
+<td>管理计算巢服务（ComputeNest）的用户侧权限</td>
+</tr>
+<tr>
+<td>AliyunComputeNestSupplierFullAccess</td>
+<td>管理计算巢服务（ComputeNest）的服务商侧权限</td>
+</tr>
+<tr>
+<td>AliyunARMSFullAccess</td>
+<td>管理业务实时监控服务（ARMS）的权限</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_8">服务实例计费说明</h2>
+<p>测试本服务在计算巢上的费用主要涉及：</p>
+<ul>
+<li>导入的容器集群的费用</li>
+<li>在容器集群新建的磁盘、网络等费用</li>
+</ul>
+<h2 id="_9">服务实例部署流程</h2>
+<h3 id="_10">部署参数说明</h3>
+<table>
+<thead>
+<tr>
+<th>参数组</th>
+<th>参数项</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>服务实例</td>
+<td>服务实例名称</td>
+<td>长度不超过64个字符，必须以英文字母开头，可包含数字、英文字母、短划线（-）和下划线（_）</td>
+</tr>
+<tr>
+<td></td>
+<td>地域</td>
+<td>服务实例部署的地域</td>
+</tr>
+<tr>
+<td></td>
+<td>可用区</td>
+<td>mysql数据卷的可用区</td>
+</tr>
+<tr>
+<td></td>
+<td>数据库root账号密码</td>
+<td>各个租户的数据库管理密码</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_11">部署步骤</h3>
+<ol>
+<li>部署链接
+   <img alt="deploye_1.png" src="deploy_1.png" /></li>
+<li>单击部署链接，进入服务实例部署界面，根据界面提示，填写参数完成部署
+   <img alt="deploy_2.png" src="deploy_2.png" /></li>
+<li>参数填写完成后可以看到对应询价明细，确认参数后点击<strong>下一步：确认订单</strong></li>
+<li>确认订单完成后同意服务协议并点击<strong>立即创建</strong>
+   进入待部署阶段。
+   <img alt="deploy_3.png" src="deploy_3.png" /></li>
+<li>在用户侧进入待部署状态后需要服务商同意用户的部署
+   <img alt="deploy_4.png" src="deploy_4.png" />
+   <img alt="deploy_5.png" src="deploy_5.png" /></li>
+<li>等待部署完成后就可以开始使用服务，通过Endpoint即可访问mysql
+   <img alt="deploy_9.png" src="deploy_9.png" /></li>
+<li>部署成功后，用户侧和服务商都可以在控制台查看监控大盘
+   用户侧：
+   <img alt="prom-9.png" src="prom-9.png" /></li>
+<li>用户可根据自己的需求修改mysql的配置参数，进入实例详情，点击修改参数：
+   <img alt="deploy_6.png" src="deploy_6.png" />
+   修改完成后，点击保存，大致需要耗时1分钟左右
+   <img alt="deploy_7.png" src="deploy_7.png" />
+   修改完成后如下图所示
+   <img alt="deploy_8.png" src="deploy_8.png" /></li>
+</ol>
+<h1 id="_12">更多功能</h1>
+<h2 id="_13">计量计费</h2>
+<p><a href="https://help.aliyun.com/zh/compute-nest/customize-a-service-architecture?spm=a2c4g.11186623.0.0.56e736bfyUdlFm]">自定义服务架构图</a></p>
+<p><a href="https://help.aliyun.com/zh/compute-nest/use-cases/publish-documents-to-compute-nest?spm=a2c4g.313309.0.i0]">服务文档上线流程</a></p>
+<p><a href="https://help.aliyun.com/zh/compute-nest/publish-a-service-to-alibaba-cloud-marketplace?spm=a2c4g.11186623.0.i7]">将服务上架云市场并上到云市场售卖</a></p>
+<h2 id="_14">服务配置</h2>
+<p><a href="https://help.aliyun.com/zh/compute-nest/create-a-hosted-operations-and-maintenance-service?spm=a2c4g.11186623.0.i24#task-2167552]">创建代运维服务完成实例运维</a></p>
+<p><a href="https://help.aliyun.com/zh/compute-nest/use-cases/create-a-service-that-supports-specification-changes-and-change-the-specifications-of-a-service-instance?spm=a2c4g.11186623.0.i3]">创建包含变配功能的服务</a></p>
+<p><a href="https://help.aliyun.com/zh/compute-nest/upgrade-a-service-instance?spm=a2c4g.11186623.0.i17#task-2236803">创建包含服务升级功能的服务</a></p>
+        
+      </div>
+
+      <div class="copyrights">© 2009-2022 Aliyun.com 版权所有</div>
+    </div>
+  </div>
+  
+  <!--
+  MkDocs version      : 1.6.1
+  Docs Build Date UTC : 2025-01-23 06:44:09.744834+00:00
+  -->
+</body>
+</html>
