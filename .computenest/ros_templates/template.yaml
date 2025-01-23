@@ -21,14 +21,6 @@ Parameters:
     Label:
       zh-cn: 数据盘大小
       en: Data Disk Size
-  ConfigParam:
-    Type: String
-    Description:
-      zh-cn: 数据库配置参数
-      en: Database configuration parameters
-    Label:
-      zh-cn: 数据库配置参数
-      en: Database Configuration Parameter
   Replicas:
     Type: Number
     Default: 1
@@ -214,9 +206,7 @@ Resources:
                     Ref: Storage
             ConfigParam:
               Fn::Indent:
-                - Fn::Select:
-                    - mysql
-                    - Ref: ConfigParam
+                - '{{ serviceConfigParam }}'
                 - 2
             Replicas:
               Ref: Replicas

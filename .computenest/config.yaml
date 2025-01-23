@@ -49,7 +49,6 @@ Service:
                 - Replicas
           HiddenParameterKeys:
             - ClusterId
-            - ConfigParam
             - Replicas
           ParameterMappings:
             - ParameterKey: RegionId
